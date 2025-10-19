@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package delivery;
+
+message Delivery {
+  string id = 1;
+  string order_id = 2;
+  string delivery_person_id = 3;
+  string city = 4;
+  string weather = 5;
+  string traffic = 6;
+  double distance_km = 7;
+  double time_taken_min = 8;
+  string delivery_timestamp = 9; // ISO8601
+  string delivery_status = 10;
+}
+
+message CreateRequest { Delivery item = 1; }
+message CreateResponse { Delivery item = 1; }
+
+message GetByIdRequest { string id = 1; }
+message GetByIdResponse { Delivery item = 1; }
+
+message UpdateRequest { Delivery item = 1; }
+message UpdateResponse { Delivery item = 1; }
+
+message DeleteRequest { string id = 1; }
+message DeleteResponse { bool success = 1; }
+
+message QueryFilter {
+  string city = 1;
+  string person_id = 2;
+  string status = 3;
+  string from_ts = 4;  // ISO8601
+  string to_ts = 5;    // ISO8601
+}
+
+message ListRequest { QueryFilter filter = 1; int32 limit = 2; int32 offset = 3; }
+message ListResponse { repeated Delivery items = 1; }
+
+enum AggregateOp { MIN = 0; MAX = 1; AVG = 2; SUM = 3; }
+
+message AggregateField { string field_name = 1; AggregateOp op = 2; }
+
+message AggregateRequest { QueryFilter filter = 1; repeated AggregateField fields = 2; }
+
+message AggregateResult { string field_name = 1; AggregateOp op = 2; double value = 3; }
+
+message AggregateResponse { repeated AggregateResult results = 1; }
+
+service DeliveryService {
+  rpc Create (CreateRequest) returns (CreateResponse);
+  rpc GetById (GetByIdRequest) returns (GetByIdResponse);
+  rpc Update (UpdateRequest) returns (UpdateResponse);
+  rpc Delete (DeleteRequest) returns (DeleteResponse);
+  rpc List (ListRequest) returns (ListResponse);
+  rpc Aggregate (AggregateRequest) returns (AggregateResponse);
+}

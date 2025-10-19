@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: iot_delivery
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d iot_delivery"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  datamanager:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.datamanager
+    container_name: datamanager
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@pg:5432/iot_delivery
+      GRPC_PORT: "50051"
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "50051:50051"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    container_name: gateway
+    environment:
+      Datamanager__GrpcUrl: http://datamanager:50051
+      ASPNETCORE_URLS: http://+:8080
+    depends_on:
+      - datamanager
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

@@ -1,0 +1,23 @@
+# docker/Dockerfile.gateway
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy csproj i proto pa restore
+COPY gateway/src/Gateway.Api/Gateway.Api.csproj gateway/src/Gateway.Api/
+COPY proto proto
+RUN dotnet restore gateway/src/Gateway.Api/Gateway.Api.csproj
+
+# Copy ostatak i publish
+COPY gateway/src/Gateway.Api gateway/src/Gateway.Api
+RUN dotnet publish gateway/src/Gateway.Api/Gateway.Api.csproj -c Release -o /app/out
+
+# Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+WORKDIR /app
+COPY --from=build /app/out .
+# Kestrel port
+ENV ASPNETCORE_URLS=http://+:8080
+# DataManager DNS na mreži je "datamanager"
+ENV Datamanager__GrpcUrl=http://datamanager:50051
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "Gateway.Api.dll"]
