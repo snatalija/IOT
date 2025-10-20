@@ -1,0 +1,121 @@
+asyncapi: '2.6.0'
+id: 'urn:asyncapi:iot-amazon-delivery:mqtt:1'
+info:
+  title: IoT Amazon Delivery – MQTT Events (DataManager Publisher)
+  version: '1.0.0'
+  description: |
+    DataManager mikroservis **publikuje** dogadjaje o isporukama nakon upisa/izmene u bazu.
+    Poruke su JSON i salju se na MQTT topic `iot/deliveries/raw`.
+  contact:
+      name: Team IoT Amazon Delivery
+      email: myemail@example.com
+      url: https://github.com/snatalija/IOT
+  license:
+      name: Apache 2.0
+      url: https://www.apache.org/licenses/LICENSE-2.0.html
+defaultContentType: application/json
+
+tags:
+  - name: deliveries
+    description: Dogadjaji vezani za isporuke
+
+servers:
+  docker-broker:
+    url: mqtt://mosquitto:1883
+    protocol: mqtt
+    description: Mosquitto broker unutar docker-compose mreze (hostname `mosquitto`).
+  host-broker:
+    url: mqtt://localhost:1883
+    protocol: mqtt
+    description: Port mapiran ka hostu (za lokalne klijente van compose-a).
+
+channels:
+  iot/deliveries/raw:
+    description: >
+      Sirovi događaji o isporukama koje objavljuje DataManager. Klijenti se pretplacuju na ovaj channel.
+    subscribe:
+      summary: Klijent se **subscribe-uje** da prima događaje (DataManager je publisher).
+      operationId: subscribeDeliveriesRaw
+      message:
+        name: DeliveryEvent
+        messageId: delivery.event 
+        title: Delivery event (created/updated)
+        contentType: application/json
+        payload:
+          $ref: '#/components/schemas/DeliveryEvent'
+        bindings:
+          mqtt:
+            qos: 1
+            retain: false
+
+components:
+  schemas:
+    DeliveryEvent:
+      type: object
+      required: [eventType, source, delivery]
+      properties:
+        eventType:
+          type: string
+          description: Tip događaja koji je emitovan.
+          enum: [created, updated]
+          examples: ["created"]
+        source:
+          type: string
+          description: Servis koji je emitovao poruku.
+          example: datamanager
+        delivery:
+          $ref: '#/components/schemas/Delivery'
+      examples:
+        - eventType: created
+          source: datamanager
+          delivery:
+            id: "442e1a4d-12a9-4ea6-ba5a-e074ec330cba"
+            orderId: "AMZ-12345"
+            deliveryPersonId: "D-77"
+            city: "Belgrade"
+            weather: "Clear"
+            traffic: "Low"
+            distanceKm: 4.8
+            timeTakenMin: 12.5
+            deliveryTimestamp: "2025-10-20T11:05:00Z"
+            deliveryStatus: "Delivered"
+
+    Delivery:
+      type: object
+      required:
+        - id
+        - orderId
+        - deliveryPersonId
+        - city
+        - weather
+        - traffic
+        - distanceKm
+        - timeTakenMin
+        - deliveryTimestamp
+        - deliveryStatus
+      properties:
+        id:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+        deliveryPersonId:
+          type: string
+        city:
+          type: string
+        weather:
+          type: string
+        traffic:
+          type: string
+        distanceKm:
+          type: number
+          format: float
+        timeTakenMin:
+          type: number
+          format: float
+        deliveryTimestamp:
+          type: string
+          description: ISO8601 (npr. 2025-10-20T11:05:00Z)
+        deliveryStatus:
+          type: string
+          enum: [Delivered, Returned, Canceled, InTransit, Pending]
