@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY eventmanager/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY eventmanager/app /app/eventmanager/app
+RUN touch /app/eventmanager/__init__.py
+
+ENV PYTHONPATH=/app
+
+ENV MQTT_HOST=mosquitto
+ENV MQTT_PORT=1883
+ENV MQTT_QOS=1
+ENV MQTT_RETAIN=false
+ENV MQTT_IN_TOPIC=iot/deliveries/raw
+ENV MQTT_OUT_TOPIC=iot/deliveries/events
+ENV THRESHOLD_TIME_TAKEN_MIN=30
+ENV THRESHOLD_DISTANCE_KM=20
+ENV SERVICE_ID=eventmanager-1
+
+CMD ["python", "-m", "eventmanager.app.main"]

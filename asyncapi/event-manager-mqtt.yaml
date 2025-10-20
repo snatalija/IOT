@@ -1,0 +1,79 @@
+asyncapi: '2.6.0'
+id: 'urn:asyncapi:iot-amazon-delivery:eventmanager:1'
+info:
+  title: IoT Amazon Delivery - EventManager (MQTT Consumer/Publisher)
+  version: '1.0.0'
+  description: |
+    EventManager se **pretplacuje** na `iot/deliveries/raw`, detektuje prekoracenja pragova
+    i **publikuje** dogadjaje na `iot/deliveries/events`.
+defaultContentType: application/json
+
+servers:
+  docker-broker:
+    url: mqtt://mosquitto:1883
+    protocol: mqtt
+  host-broker:
+    url: mqtt://localhost:1883
+    protocol: mqtt
+
+channels:
+  iot/deliveries/raw:
+    subscribe:
+      summary: Ulazni događaji (DeliveryEvent) od DataManager-a.
+      message:
+        name: DeliveryEvent
+        payload:
+          $ref: '#/components/schemas/DeliveryEvent'
+        bindings:
+          mqtt:
+            qos: 1
+            retain: false
+
+  iot/deliveries/events:
+    publish:
+      summary: Izlazni događaji (DetectedEvent) kada su pragovi prekoraceni.
+      message:
+        name: DetectedEvent
+        payload:
+          $ref: '#/components/schemas/DetectedEvent'
+        bindings:
+          mqtt:
+            qos: 1
+            retain: false
+
+components:
+  schemas:
+    Delivery:
+      type: object
+      required: [id, orderId, deliveryPersonId, city, weather, traffic, distanceKm, timeTakenMin, deliveryTimestamp, deliveryStatus]
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        deliveryPersonId: { type: string }
+        city: { type: string }
+        weather: { type: string }
+        traffic: { type: string }
+        distanceKm: { type: number, format: float }
+        timeTakenMin: { type: number, format: float }
+        deliveryTimestamp: { type: string, description: "ISO8601" }
+        deliveryStatus: { type: string }
+    DeliveryEvent:
+      type: object
+      required: [eventType, source, delivery]
+      properties:
+        eventType: { type: string, enum: [created, updated] }
+        source: { type: string, example: "datamanager" }
+        delivery: { $ref: '#/components/schemas/Delivery' }
+    DetectedEvent:
+      type: object
+      required: [eventType, rule, field, threshold, actual, sourceId]
+      properties:
+        eventType: { type: string, enum: [threshold.exceeded] }
+        rule: { type: string }
+        field: { type: string, enum: [timeTakenMin, distanceKm] }
+        threshold: { type: number }
+        actual: { type: number }
+        city: { type: string }
+        timestamp: { type: string }
+        originalDeliveryId: { type: string }
+        sourceId: { type: string, example: "eventmanager" }
