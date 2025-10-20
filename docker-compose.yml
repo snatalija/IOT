@@ -1,4 +1,4 @@
-version: "3.9"
+# version: "3.9"
 
 services:
   postgres:
@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: iot_delivery
     ports:
-      - "5432:5432"
+      - "5432:5432"   
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,19 +18,42 @@ services:
       timeout: 3s
       retries: 10
 
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 -W 2 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   datamanager:
     build:
       context: .
       dockerfile: docker/Dockerfile.datamanager
     container_name: datamanager
     environment:
+      # DB
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@pg:5432/iot_delivery
-      GRPC_PORT: "50051"
       PYTHONPATH: /app
       PYTHONUNBUFFERED: "1"
+      GRPC_PORT: "50051"
+      # MQTT
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC_DELIVERIES: iot/deliveries/raw
+      MQTT_QOS: 1
+      MQTT_RETAIN: "false"
     depends_on:
       postgres:
         condition: service_healthy
+      mosquitto:
+        condition: service_started
     ports:
       - "50051:50051"
 
@@ -43,7 +66,8 @@ services:
       Datamanager__GrpcUrl: http://datamanager:50051
       ASPNETCORE_URLS: http://+:8080
     depends_on:
-      - datamanager
+      datamanager:
+        condition: service_started
     ports:
       - "8080:8080"
 

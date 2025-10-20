@@ -76,7 +76,6 @@ def make_session(timeout: float) -> requests.Session:
     s.mount("http://", HTTPAdapter(max_retries=retry))
     s.mount("https://", HTTPAdapter(max_retries=retry))
 
-    # Uvek koristi default timeout bez ponavljanja kroz svaki poziv
     orig_request = s.request
 
     def _request(method, url, **kwargs):
@@ -84,7 +83,7 @@ def make_session(timeout: float) -> requests.Session:
             kwargs["timeout"] = timeout
         return orig_request(method, url, **kwargs)
 
-    s.request = _request  # type: ignore
+    s.request = _request
     return s
 
 
@@ -130,7 +129,6 @@ def main():
         batch_buf.append(payload)
 
         if len(batch_buf) >= args.batch:
-            # Pošalji batch kao više POST-ova (jedan JSON po POST-u – zadržavamo REST ugovor)
             for item in batch_buf:
                 try:
                     resp = session.post(url, json=item)
@@ -143,11 +141,9 @@ def main():
             batch_buf.clear()
             time.sleep(delay)
 
-            # mali napredak na svakih 50 komada
             if sent % 50 == 0:
                 print(f"Poslato {sent}/{total}...")
 
-    # preostali batch
     if batch_buf:
         for item in batch_buf:
             try:
