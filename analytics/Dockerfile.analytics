@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY analytics/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY analytics/app /app/app
+ENV MQTT_HOST=mosquitto \
+    MQTT_PORT=1883 \
+    MQTT_IN_TOPIC=iot/deliveries/raw \
+    MQTT_OUT_TOPIC=iot/analytics/risk \
+    ML_URL=http://mlaas:9000/predict
+CMD ["python", "app/consumer.py"]

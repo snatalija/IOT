@@ -88,6 +88,31 @@ services:
         condition: service_started
     ports:
       - "8080:8080"
+  mlaas:
+    build:
+      context: .
+      dockerfile: mlaas/Dockerfile.mlaas
+    container_name: mlaas
+    environment:
+      MODEL_PATH: /app/model.pkl
+    ports:
+      - "9000:9000"
+
+  analytics:
+    build:
+      dockerfile: docker/Dockerfile.analytics
+      context: .
+    container_name: analytics
+    depends_on:
+      - mosquitto
+      - mlaas
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_IN_TOPIC=iot/deliveries/raw
+      - MQTT_OUT_TOPIC=iot/analytics/risk
+      - ML_URL=http://mlaas:9000/predict
+
 
 volumes:
   pgdata:
