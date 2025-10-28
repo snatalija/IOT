@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY mlaas/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY data/amazon_delivery.csv /app/data/amazon_delivery.csv
+COPY mlaas/train.py /app/train.py
+ENV CSV_PATH=/app/data/amazon_delivery.csv
+ENV MODEL_PATH=/app/model.pkl
+RUN mkdir -p /app/data && python /app/train.py
+
+COPY mlaas/app /app/app
+EXPOSE 9000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9000"]

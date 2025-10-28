@@ -1,0 +1,7 @@
+**/__pycache__/
+*.pkl
+*.log
+.env
+venv/
+*.so
+data/amazon_delivery.csv

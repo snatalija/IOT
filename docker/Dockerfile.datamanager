@@ -1,0 +1,39 @@
+# docker/Dockerfile.datamanager  (FULL)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps for psycopg2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install
+COPY datamanager/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy source + proto 
+COPY proto /app/proto
+COPY datamanager/app /app/datamanager/app
+
+# Generate gRPC stubs into package folder
+RUN python -m grpc_tools.protoc -I /app/proto \
+    --python_out=/app/datamanager/app/generated \
+    --grpc_python_out=/app/datamanager/app/generated \
+    /app/proto/delivery.proto
+
+# Fix Python import u delivery_pb2_grpc.py 
+RUN sed -i 's/^import delivery_pb2 as/from \. import delivery_pb2 as/' /app/datamanager/app/generated/delivery_pb2_grpc.py
+
+# Ensure package layout
+RUN touch /app/__init__.py /app/datamanager/__init__.py /app/datamanager/app/__init__.py \
+         /app/datamanager/app/db/__init__.py /app/datamanager/app/server/__init__.py \
+         /app/datamanager/app/generated/__init__.py
+
+# ENV for DB & gRPC port
+ENV DATABASE_URL=postgresql+psycopg2://postgres:postgres@pg:5432/iot_delivery
+ENV GRPC_PORT=50051
+ENV PYTHONPATH=/app
+
+EXPOSE 50051
+
+CMD ["python", "-m", "datamanager.app.server.grpc_server"]

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>EventManager MQTT Client</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; margin: 24px; }
+    #status { margin-bottom: 12px; }
+    pre { background:#111; color:#0f0; padding:12px; border-radius:8px; max-height:60vh; overflow:auto; }
+    .ok { color: #1a7f37; } .bad { color:#d1242f; }
+  </style>
+</head>
+<body>
+  <h1>EventManager – MQTT poruke</h1>
+  <div id="status">Status: <span class="bad">disconnected</span></div>
+  <pre id="log"></pre>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    const topic = 'iot/deliveries/events';
+    const host = (location.hostname || 'localhost');
+    const port = 9001;
+    const url  = `ws://${host}:${port}`;
+
+    const $status = document.querySelector('#status span');
+    const $log = document.querySelector('#log');
+
+    function log(line) {
+      const ts = new Date().toISOString();
+      $log.textContent += `[${ts}] ${line}\n`;
+      $log.scrollTop = $log.scrollHeight;
+    }
+
+    const client = mqtt.connect(url, {
+      clientId: 'web-client-' + Math.random().toString(16).slice(2),
+      protocol: 'ws',
+      reconnectPeriod: 2000,
+      clean: true
+    });
+
+    client.on('connect', () => {
+      $status.textContent = 'connected'; $status.className = 'ok';
+      log(`Connected to ${url}, subscribing to "${topic}"...`);
+      client.subscribe(topic, { qos: 0 }, (err) => {
+        if (err) { log('Subscribe error: ' + err); }
+        else { log('Subscribed ✓'); }
+      });
+    });
+
+    client.on('reconnect', () => { $status.textContent = 'reconnecting…'; $status.className = 'bad'; });
+    client.on('close', () => { $status.textContent = 'disconnected'; $status.className = 'bad'; });
+    client.on('error', (e) => { log('Error: ' + e.message); });
+
+    client.on('message', (t, payload) => {
+      try {
+        const obj = JSON.parse(payload.toString());
+        log(`${t}: ${JSON.stringify(obj)}`);
+      } catch {
+        log(`${t}: ${payload.toString()}`);
+      }
+    });
+  </script>
+</body>
+</html>

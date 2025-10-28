@@ -1,0 +1,13 @@
+protobuf==4.25.3
+grpcio==1.62.2
+grpcio-tools==1.62.2
+SQLAlchemy==2.0.29
+psycopg2-binary==2.9.9
+
+pydantic==2.7.4
+pydantic-settings==2.2.1
+fastapi>=0.115
+uvicorn>=0.30
+python-dotenv==1.0.1
+
+paho-mqtt==1.6.1

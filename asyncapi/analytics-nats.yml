@@ -1,0 +1,100 @@
+asyncapi: '2.6.0'
+info:
+  title: Analytics Risk Events
+  version: '1.0.0'
+  description: >
+    Analytics mikroservis objavljuje procenu rizika kašnjenja na NATS subject
+    **analytics.risk**. Poruka sadrži ulazne osobine i rezultat modela (late, proba_late).
+defaultContentType: application/json
+
+servers:
+  natsLocal:
+    url: nats://localhost:4222
+    protocol: nats
+    description: Lokalni NATS broker (docker-compose service `nats`)
+
+channels:
+  analytics.risk:
+    description: Procena rizika kašnjenja isporuke.
+    publish:
+      operationId: publishRisk
+      summary: Publish risk prediction
+      message:
+        $ref: '#/components/messages/RiskEvent'
+
+components:
+  messages:
+    RiskEvent:
+      name: RiskEvent
+      title: Analytics risk event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RiskPayload'
+
+  schemas:
+    Features:
+      type: object
+      required: [area, weather, traffic, distanceKm, hour, weekday]
+      properties:
+        area:
+          type: string
+          example: Belgrade
+        weather:
+          type: string
+          example: Clear
+        traffic:
+          type: string
+          example: Low
+        distanceKm:
+          type: number
+          format: float
+          example: 4.2
+        hour:
+          type: integer
+          minimum: 0
+          maximum: 23
+          example: 13
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          example: 1
+
+    Prediction:
+      type: object
+      required: [late, proba_late, threshold_min]
+      properties:
+        late:
+          type: integer
+          enum: [0,1]
+          description: 1 = kasni, 0 = ne kasni
+        proba_late:
+          type: number
+          format: float
+          description: Verovatnoća kašnjenja
+        threshold_min:
+          type: number
+          format: float
+          description: Prag SLA u minutima
+
+    RiskPayload:
+      type: object
+      required: [eventType, source, features, prediction, ts]
+      properties:
+        eventType:
+          type: string
+          example: analytics.risk
+        source:
+          type: string
+          example: analytics
+        features:
+          $ref: '#/components/schemas/Features'
+        prediction:
+          $ref: '#/components/schemas/Prediction'
+        originalDeliveryId:
+          type: string
+          nullable: true
+          example: test-123
+        ts:
+          type: integer
+          description: Unix epoch ms

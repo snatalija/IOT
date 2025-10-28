@@ -1,0 +1,153 @@
+asyncapi: '2.6.0'
+info:
+  title: Analytics Risk Events
+  version: '1.0.0'
+  description: |
+    Analytics mikroservis objavljuje rezultat ML predikcije rizika ka NATS brokera
+    na subject **analytics.risk**. Poruka sadrži originalne feature-e, rezultat
+    klasifikacije i metapodatke.
+
+defaultContentType: application/json
+
+servers:
+  natsLocal:
+    url: nats://nats:4222
+    protocol: nats
+    description: Lokalni NATS iz docker-compose okruženja
+    bindings:
+      nats:
+        servers:
+          - nats://nats:4222
+
+channels:
+  analytics.risk:
+    description: Rizik kašnjenja isporuke iz Analytics mikroservisa.
+    bindings:
+      nats:
+        subject: analytics.risk
+    publish:
+      operationId: publishAnalyticsRisk
+      summary: Objavljivanje rezultata rizika kašnjenja isporuke
+      message:
+        $ref: '#/components/messages/AnalyticsRiskEvent'
+
+components:
+  messages:
+    AnalyticsRiskEvent:
+      name: AnalyticsRiskEvent
+      title: Analytics Risk Event
+      contentType: application/json
+      bindings:
+        nats:
+          subject: analytics.risk
+      payload:
+        $ref: '#/components/schemas/AnalyticsRiskPayload'
+      examples:
+        - name: Example1
+          summary: Standardni primer sa područjem (area)
+          payload:
+            eventType: analytics.risk
+            source: analytics
+            features:
+              area: Belgrade
+              weather: Clear
+              traffic: Low
+              distanceKm: 4.2
+              hour: 13
+              weekday: 1
+            prediction:
+              late: 1
+              proba_late: 0.9
+              threshold_min: 30.0
+            originalDeliveryId: AMZ-NATS-TEST
+            ts: 1761245360044
+
+  schemas:
+    AnalyticsRiskPayload:
+      type: object
+      required:
+        - eventType
+        - source
+        - features
+        - prediction
+        - ts
+      properties:
+        eventType:
+          type: string
+          description: Tip događaja
+          enum: [analytics.risk]
+        source:
+          type: string
+          description: Izvor događaja
+          enum: [analytics]
+        originalDeliveryId:
+          type: string
+          description: Identifikator originalne isporuke na koju se predikcija odnosi
+        ts:
+          type: integer
+          format: int64
+          description: UNIX epoch u milisekundama (vreme objave)
+        features:
+          $ref: '#/components/schemas/Features'
+        prediction:
+          $ref: '#/components/schemas/Prediction'
+
+    Features:
+      type: object
+      description: Ulazne karakteristike korišćene za predikciju
+      properties:
+        # Napomena: u tvojoj poruci ka NATS-u koristi se "area" (umesto "city")
+        area:
+          type: string
+          description: Grad/područje isporuke (npr. "Belgrade")
+        weather:
+          type: string
+          description: Vremenski uslovi
+          examples: [Clear, Cloudy, Rain, Snow]
+        traffic:
+          type: string
+          description: Gužva u saobraćaju
+          examples: [Low, Medium, High]
+        distanceKm:
+          type: number
+          format: float
+          description: Udaljenost u kilometrima
+        hour:
+          type: integer
+          minimum: 0
+          maximum: 23
+          description: Sat u danu (0-23)
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: Dan u nedelji (0=ponedeljak … 6=nedelja)
+      required:
+        - weather
+        - traffic
+        - distanceKm
+        - hour
+        - weekday
+
+    Prediction:
+      type: object
+      description: Rezultat ML klasifikacije
+      properties:
+        late:
+          type: integer
+          enum: [0, 1]
+          description: 1 = kasni, 0 = ne kasni
+        proba_late:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Verovatnoća da isporuka kasni
+        threshold_min:
+          type: number
+          format: float
+          description: Prag (min) korišćen u treniranju/ocenjivanju
+      required:
+        - late
+        - proba_late
+        - threshold_min

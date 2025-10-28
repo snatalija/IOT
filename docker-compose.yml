@@ -1,0 +1,164 @@
+# version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: iot_delivery
+    ports:
+      - "5432:5432"   
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d iot_delivery"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 -W 2 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      
+  eventmanager:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.eventmanager
+    container_name: eventmanager
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      MQTT_RETAIN: "false"
+      MQTT_IN_TOPIC: iot/deliveries/raw
+      MQTT_OUT_TOPIC: iot/deliveries/events
+      THRESHOLD_TIME_TAKEN_MIN: 140
+      THRESHOLD_DISTANCE_KM: 15
+      SERVICE_ID: eventmanager-1
+
+  datamanager:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.datamanager
+    container_name: datamanager
+    environment:
+      # DB
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@pg:5432/iot_delivery
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: "1"
+      GRPC_PORT: "50051"
+      # MQTT
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC_DELIVERIES: iot/deliveries/raw
+      MQTT_QOS: 1
+      MQTT_RETAIN: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    ports:
+      - "50051:50051"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    container_name: gateway
+    environment:
+      Datamanager__GrpcUrl: http://datamanager:50051
+      ASPNETCORE_URLS: http://+:8080
+    depends_on:
+      datamanager:
+        condition: service_started
+    ports:
+      - "8080:8080"
+  mlaas:
+    build:
+      context: .
+      dockerfile: mlaas/Dockerfile.mlaas
+    container_name: mlaas
+    environment:
+      MODEL_PATH: /app/model.pkl
+    ports:
+      - "9000:9000"
+
+  analytics:
+    build:
+      dockerfile: analytics/Dockerfile.analytics
+      context: .
+    container_name: analytics
+    depends_on:
+      - mosquitto
+      - mlaas
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_IN_TOPIC=iot/deliveries/events
+      - MQTT_OUT_TOPIC=iot/analytics/risk
+      - ML_URL=http://mlaas:9000/predict
+      - NATS_URL=nats://nats:4222
+      - NATS_SUBJECT=analytics.risk
+      - PYTHONUNBUFFERED=1
+  nats:
+    image: nats:2-alpine
+    container_name: nats
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  nats-box:
+    image: synadia/nats-box:latest
+    container_name: nats-box
+    depends_on:
+      - nats
+    entrypoint: ["sh", "-lc", "sleep infinity"]
+
+  mqttnats-client:
+    build:
+      context: .
+      dockerfile: clients/mqtt-nats/Dockerfile
+    container_name: mqttnats-client
+    depends_on:
+      - mosquitto
+      - nats
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC: iot/deliveries/events
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT: analytics.risk
+    restart: unless-stopped
+  sensor-generator:
+    build:
+      context: .
+      dockerfile: sensor-generator/Dockerfile.sensorgenerator
+    container_name: sensor-generator
+    depends_on:
+      - gateway
+    restart: "no"
+
+
+volumes:
+  pgdata:
